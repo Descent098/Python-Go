@@ -1,6 +1,6 @@
 # Hard Part
 
-...
+This section explains how to use slices, strings and structs. This is the hard part because of the memory management involved with these types. You can find details [here](https://kieranwood.ca/tech/blog/python-plus-go-basics/#the-hard-part).
 
 ## Folder Structure
 
