@@ -1,6 +1,6 @@
 # Python To Go Helper
 
-This is a library that contains python and go utilities for passing data between the two languages
+This is a library that contains python and go utilities for passing data between the two languages. Please note that while I've done my best due diligence I cannot guarentee there are no memory leaks in the current code. I've tested in a bunch of scenarios, but I would recommend being vigilant in any code that uses the library.
 
 ## Python
 
@@ -42,7 +42,76 @@ The python lib has the following API functions:
 - `free_float_array_result(ptr: _CFloatArrayResult)`: Frees a FloatArrayResult (including the array and the struct itself).
 
 
+### Tests
+
+To run the tests first install pytest:
+
+```bash
+pip install pytest pytest-cov
+```
+
+To run tests install pytest and run:
+
+```bash
+pytest --ignore=__init__.py --cov-report term-missing --cov=. test_lib.py
+```
+
+This will run the test suite and let you know any coverage misses. There's ~%80 coverage currently due to some conditions not being possible (or I don't know how to make them happen)
+
 ## Go
+
+Below are details for hooking up the go side of your code with the helper
+
+### Setup
+
+In your own go code import the package with:
+
+```go
+import (
+	helpers "github.com/Descent098/cgo-python-helpers/helpers"
+)
+```
+
+Then run:
+
+```bash
+go mod tidy
+```
+
+Here is an example:
+
+```go
+package main
+
+/*
+#include <stdio.h>
+#include <stdlib.h>
+*/
+import "C"
+import (
+	"fmt"
+	helpers "github.com/Descent098/cgo-python-helpers"
+)
+
+func main() {
+	// Sample data
+	numbers := []int{1, 2, 3, 4, 5}
+
+	// Convert Go slice to C-compatible struct
+	cIntArray := helpers.IntSliceToCArray(numbers)
+	fmt.Printf("Converted to C: %v elements\n", cIntArray.numberOfElements)
+
+	// Convert back to Go slice
+	goSlice := helpers.CIntArrayToSlice(cIntArray.data, int(cIntArray.numberOfElements))
+	fmt.Printf("Back to Go: %v\n", goSlice)
+
+	// Clean up memory
+	helpers.FreeIntArray(cIntArray.data)
+	C.free(unsafe.Pointer(cIntArray)) // or helpers.free_int_array_result(cIntArray) if exported
+}
+```
+
+### API
 
 The go lib has the following API functions:
 
@@ -78,3 +147,11 @@ The go lib has the following API functions:
 - `print_string_array(cArray **C.char, numberOfString int){}`: Prints the go representation of an array, good for debugging encoding issues
 - `print_int_array(cArray *C.int, numberOfInts int){}`: Prints the go representation of an array, good for debugging rounding/conversion issues
 - `print_float_array(cArray *C.float, numberOfFloats int){}`: Prints the go representation of an array, good for debugging rounding/conversion issues
+
+### Tests
+
+To run the tests use: 
+
+```bash
+go test
+```

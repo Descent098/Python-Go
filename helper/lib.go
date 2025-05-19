@@ -76,15 +76,25 @@ import (
 // ======== Convert Go types to C type ========
 
 // Convert a string to a c-compatible C-string (glorified alias for C.CString)
-func StringToCString(input string) *C.char {
-	return C.CString(input)
+//
+// Parameters:
+//   - input: The Go string to convert.
+//
+// Returns:
+//   - A pointer to the newly allocated C string (*C.char).
+//     Note: The caller is responsible for freeing the allocated memory using FreeCString.
+func StringToCString(input string) unsafe.Pointer {
+	return unsafe.Pointer(C.CString(input))
 }
 
 // A function to take a slice and convert it to a StringArrayResult to be returned to C code
 //
-// # Notes
+// Parameters:
+//   - data: Slice of Go strings to convert.
 //
-//   - This function DOES NOT clean memory of input array, that's up to others to clear
+// Returns:
+//   - Pointer to a C.StringArrayResult containing the converted C strings.
+//     Note: The caller is responsible for freeing the allocated memory using free_string_array_result.
 func StringSliceToCArray(data []string) *C.StringArrayResult {
 	count := len(data)
 
@@ -116,9 +126,12 @@ func StringSliceToCArray(data []string) *C.StringArrayResult {
 
 // Return dynamically sized int array as a C-Compatible array
 //
-// # Notes
+// Parameters:
+//   - data: Slice of Go integers to convert.
 //
-//   - This function DOES NOT clean memory of input array, that's up to others to clear
+// Returns:
+//   - Pointer to a C.IntArrayResult containing the converted C integers.
+//     Note: The caller is responsible for freeing the allocated memory using free_int_array_result.
 func IntSliceToCArray(data []int) *C.IntArrayResult {
 	count := len(data)
 
@@ -142,9 +155,12 @@ func IntSliceToCArray(data []int) *C.IntArrayResult {
 
 // Return dynamically float sized array as a C-Compatible array
 //
-// # Notes
+// Parameters:
+//   - data: Slice of Go float32 values to convert.
 //
-//   - This function DOES NOT clean memory of input array, that's up to others to clear
+// Returns:
+//   - Pointer to a C.FloatArrayResult containing the converted C floats.
+//     Note: The caller is responsible for freeing the allocated memory using free_float_array_result.
 func FloatSliceToCArray(data []float32) *C.FloatArrayResult {
 	count := len(data)
 
@@ -169,24 +185,33 @@ func FloatSliceToCArray(data []float32) *C.FloatArrayResult {
 // ======== Convert C types to Go ========
 
 // Convert a string to a c-compatible C-string (glorified alias for C.GoString)
-func CStringToString(input *C.char) string {
-	return C.GoString(input)
+//
+// Parameters:
+//   - input: Pointer to the C string to convert (*C.char).
+//
+// Returns:
+//   - The corresponding Go string.
+func CStringToString(input unsafe.Pointer) string {
+	return C.GoString((*C.char)(input))
 }
 
 // Takes a C integer array and coverts it to an integer slice
 //
-// # Notes
+// Parameters:
+//   - cArray: Pointer to the C array of integers (*C.int).
+//   - length: Number of elements in the C array.
 //
-//   - This function DOES NOT clean memory of input array, that's up to others to clear
+// Returns:
+//   - A Go slice containing the converted integers.
 //
-// # Usage
+// Usage:
 //
 //	var cIntArray *C.int // Assuming it's set in some line after this
-//	goInts := CIntArrayToSlice(cIntArray, length).([]int)
-func CIntArrayToSlice(cArray *C.int, length int) []int {
+//	goInts := CIntArrayToSlice(unsafe.Pointer(cIntArray), length)
+func CIntArrayToSlice(cArray unsafe.Pointer, length int) []int {
 	// Setup buffer for array contents
 	const bufferSize = 1 << 30 // Allocate a huge buffer
-	slice := (*[bufferSize]C.int)(unsafe.Pointer(cArray))[:length:length]
+	slice := (*[bufferSize]C.int)(cArray)[:length:length]
 
 	// Convert to []int
 	result := make([]int, length)
@@ -198,18 +223,21 @@ func CIntArrayToSlice(cArray *C.int, length int) []int {
 
 // Converts a C array of floats to a slice of floats
 //
-// # Notes
+// Parameters:
+//   - cArray: Pointer to the C array of floats (*C.float).
+//   - length: Number of elements in the C array.
 //
-//   - This function DOES NOT clean memory of input array, that's up to others to clear
+// Returns:
+//   - A Go slice containing the converted float32 values.r
 //
-// # Usage
+// Usage:
 //
 //	var cFloatArray  *C.float // Assuming it's set in some line after this
-//	goFloats := CFloatArrayToSlice(cFloatArray, length).([]float32)
-func CFloatArrayToSlice(cArray *C.float, length int) []float32 {
+//	goFloats := CFloatArrayToSlice(unsafe.Pointer(cFloatArray), length)
+func CFloatArrayToSlice(cArray unsafe.Pointer, length int) []float32 {
 	// Setup buffer for array contents
 	const bufferSize = 1 << 30 // Allocate a huge buffer
-	slice := (*[bufferSize]C.float)(unsafe.Pointer(cArray))[:length:length]
+	slice := (*[bufferSize]C.float)(cArray)[:length:length]
 
 	// Convert to []float32
 	result := make([]float32, length)
@@ -222,13 +250,20 @@ func CFloatArrayToSlice(cArray *C.float, length int) []float32 {
 // Takes in an array of strings, and converts it to a slice of strings
 // C array -> slice of strings
 //
-// # Notes
+// Parameters:
+//   - cArray: Pointer to the C array of strings (**C.char).
+//   - numberOfStrings: Number of strings in the C array.
+//
+// Returns:
+//   - A Go slice containing the converted strings.
+//
+// Notes
 //
 //   - This function DOES NOT clean memory of input array, that's up to others to clear
-func CStringArrayToSlice(cArray **C.char, numberOfStrings int) []string {
+func CStringArrayToSlice(cArray unsafe.Pointer, numberOfStrings int) []string {
 	// Setup buffer for array contents
 	const bufferSize = 1 << 30 // Allocate a huge buffer
-	stringPointers := (*[bufferSize]*C.char)(unsafe.Pointer(cArray))[:numberOfStrings:numberOfStrings]
+	stringPointers := (*[bufferSize]*C.char)(cArray)[:numberOfStrings:numberOfStrings]
 
 	result := make([]string, 0, numberOfStrings)
 	for i := range numberOfStrings {
@@ -237,56 +272,36 @@ func CStringArrayToSlice(cArray **C.char, numberOfStrings int) []string {
 	return result
 }
 
-// Converts a C array of floats or ints to a slice of floats or ints
-//
-// # Notes
-//
-//   - This function DOES NOT clean memory of input array, that's up to others to clear
-//
-// # Usage
-//
-//	var cFloatArray  *C.float // Assuming it's set in some line after this
-//	goFloats := NumberArrayToSlice(cFloatArray, length).([]float32)
-func NumberArrayToSlice(ptr interface{}, length int) interface{} {
-	if ptr == nil {
-		return nil
-	}
-
-	switch p := ptr.(type) {
-	case *C.int:
-		return CIntArrayToSlice(p, length)
-
-	case *C.float:
-		return CFloatArrayToSlice(p, length)
-	default:
-		panic(fmt.Sprintf("NumberArrayToSlice(): unsupported type: %T", ptr))
-	}
-}
-
 // ========== Debugging Functions ==========
 
 // Used to convert a C-compatible string back to itself, good for debugging encoding issues
 //
-// # Notes
+// Parameters:
+//   - cString: Pointer to the C string (*C.char).
 //
-//   - Does not free any memory
+// Returns:
+//   - Pointer to a new C string with the same content (*C.char).
+//     Note: The caller is responsible for freeing the allocated memory using FreeCString.
 //
 //export return_string
-func return_string(cString *C.char) *C.char {
-
-	internalRepresentation := C.GoString(cString)
+func return_string(cString unsafe.Pointer) unsafe.Pointer {
+	internalRepresentation := C.GoString((*C.char)(cString))
 	result := StringToCString(internalRepresentation)
 	return result
 }
 
 // Used to convert a C-compatible string array to wrapper type
 //
-// # Notes
+// Parameters:
+//   - cArray: Pointer to the C array of strings (**C.char).
+//   - numberOfStrings: Number of strings in the C array.
 //
-//   - Does not free any memory
+// Returns:
+//   - Pointer to a C.StringArrayResult containing the converted strings (*C.StringArrayResult).
+//     Note: The caller is responsible for freeing the allocated memory using free_string_array_result.
 //
 //export return_string_array
-func return_string_array(cArray **C.char, numberOfStrings int) *C.StringArrayResult {
+func return_string_array(cArray unsafe.Pointer, numberOfStrings int) *C.StringArrayResult {
 
 	internalRepresentation := CStringArrayToSlice(cArray, numberOfStrings)
 
@@ -297,36 +312,47 @@ func return_string_array(cArray **C.char, numberOfStrings int) *C.StringArrayRes
 
 // Used to convert a C-compatible integer array to wrapper type
 //
-// # Notes
+// Parameters:
+//   - cArray: Pointer to the C array of integers (*C.int).
+//   - numberOfElements: Number of elements in the C array.
 //
-//   - Does not free any memory
+// Returns:
+//   - Pointer to a C.IntArrayResult containing the converted integers (*C.IntArrayResult).
+//     Note: The caller is responsible for freeing the allocated memory using free_int_array_result.
 //
 //export return_int_array
-func return_int_array(cArray *C.int, numberOfElements C.int) *C.IntArrayResult {
+func return_int_array(cArray unsafe.Pointer, numberOfElements C.int) *C.IntArrayResult {
 	internalRepresentation := CIntArrayToSlice(cArray, int(numberOfElements))
 	result := IntSliceToCArray(internalRepresentation)
-	return result
+	return (*C.IntArrayResult)(result)
 }
 
 // Used to convert a C-compatible float array to wrapper type
 //
-// # Notes
+// Parameters:
+//   - cArray: Pointer to the C array of floats(*C.float).
+//   - numberOfElements: Number of elements in the C array.
 //
-//   - Does not free any memory
+// Returns:
+//   - Pointer to a C.FloatArrayResult containing the converted floats (*C.FloatArrayResult).
+//     Note: The caller is responsible for freeing the allocated memory using free_float_array_result.
 //
 //export return_float_array
-func return_float_array(cArray *C.float, numberOfElements C.int) *C.FloatArrayResult {
+func return_float_array(cArray unsafe.Pointer, numberOfElements C.int) *C.FloatArrayResult {
 	internalRepresentation := CFloatArrayToSlice(cArray, int(numberOfElements))
 	result := FloatSliceToCArray(internalRepresentation)
-	return result
+	return (*C.FloatArrayResult)(result)
 }
 
 // Prints the go representation of a C string, good for debugging encoding issues
 //
+// Parameters:
+//   - ptr: Pointer to the C string (*C.char).
+//
 //export print_string
-func print_string(ptr *C.char) {
+func print_string(ptr unsafe.Pointer) {
 	if ptr != nil {
-		fmt.Printf("print_string() Go representation: %s\n", C.GoString(ptr))
+		fmt.Printf("print_string() Go representation: %s\n", C.GoString((*C.char)(ptr)))
 	} else {
 		fmt.Println("print_string() received nil pointer")
 	}
@@ -334,25 +360,39 @@ func print_string(ptr *C.char) {
 
 // Prints the go representation of an array, good for debugging encoding issues
 //
+// Parameters:
+//   - cArray: Pointer to the C array of strings (**C.char).
+//   - numberOfString: Number of strings in the C array.
+//
 //export print_string_array
-func print_string_array(cArray **C.char, numberOfString int) {
+func print_string_array(cArray unsafe.Pointer, numberOfString int) {
 	res := CStringArrayToSlice(cArray, numberOfString)
 	fmt.Printf("print_string_array() Go representation: %v\n", res)
 }
 
 // Prints the go representation of an array, good for debugging rounding/conversion issues
 //
+// Parameters:
+//   - cArray: Pointer to the C array of integers (*C.int).
+//   - numberOfInts: Number of integers in the C array.
+//
 //export print_int_array
-func print_int_array(cArray *C.int, numberOfInts int) {
+func print_int_array(cArray unsafe.Pointer, numberOfInts int) {
+	fmt.Printf("Got initial array with %d items, converting", numberOfInts)
 	res := CIntArrayToSlice(cArray, numberOfInts)
+	fmt.Println("Converted array")
 
 	fmt.Printf("print_int_array() Go representation: %v\n", res)
 }
 
 // Prints the go representation of an array, good for debugging rounding/conversion issues
 //
+// Parameters:
+//   - cArray: Pointer to the C array of floats (*C.float).
+//   - numberOfFloats: Number of floats in the C array.
+//
 //export print_float_array
-func print_float_array(cArray *C.float, numberOfFloats int) {
+func print_float_array(cArray unsafe.Pointer, numberOfFloats int) {
 	res := CFloatArrayToSlice(cArray, numberOfFloats)
 
 	fmt.Printf("print_float_array() Go representation: %v\n", res)
@@ -360,52 +400,90 @@ func print_float_array(cArray *C.float, numberOfFloats int) {
 
 // ========== Functions to free memory ==========
 
+// Free a previously allocated C string from Go.
+//
+// Parameters:
+//   - ptr: Pointer to the C string to be freed (*C.char).
+//
 //export FreeCString
-func FreeCString(ptr *C.char) {
+func FreeCString(ptr unsafe.Pointer) {
 	if ptr != nil {
-		C.free(unsafe.Pointer(ptr))
+		C.free(ptr)
 	}
 }
 
+// Free a StringArrayResult allocated by StringSliceToCArray.
+//
+// Parameters:
+//   - result: Pointer to the C.StringArrayResult to be freed (**C.char).
+//
 //export FreeStringArray
-func FreeStringArray(inputArray **C.char, count C.int) {
+func FreeStringArray(inputArray unsafe.Pointer, count C.int) {
 	for i := 0; i < int(count); i++ {
 		// Calculate where to find the string
-		locationOfArray := uintptr(unsafe.Pointer(inputArray)) // Starting point of first byte of slice
-		offsetIntoArray := uintptr(i)                          // The offset for the current element
-		memorySizeOfStruct := unsafe.Sizeof(uintptr(0))        // Size of a single struct
+		locationOfArray := uintptr(inputArray)          // Starting point of first byte of slice
+		offsetIntoArray := uintptr(i)                   // The offset for the current element
+		memorySizeOfStruct := unsafe.Sizeof(uintptr(0)) // Size of a single struct
 
 		ptr := *(**C.char)(unsafe.Pointer(locationOfArray + offsetIntoArray*memorySizeOfStruct))
 		C.free(unsafe.Pointer(ptr))
 	}
-	C.free(unsafe.Pointer(inputArray))
+	C.free(inputArray)
 }
 
+// Free an *C.int.
+//
+// Parameters:
+//   - result: Pointer to the *C.int to be freed.
+//
 //export FreeIntArray
-func FreeIntArray(ptr *C.int) {
-	C.free(unsafe.Pointer(ptr))
+func FreeIntArray(ptr unsafe.Pointer) {
+	C.free(ptr)
 }
 
+// Free a *C.float.
+//
+// Parameters:
+//   - result: Pointer to the C.FloatArrayResult to be freed (*C.float).
+//
 //export FreeFloatArray
-func FreeFloatArray(ptr *C.float) {
-	C.free(unsafe.Pointer(ptr))
+func FreeFloatArray(ptr unsafe.Pointer) {
+	C.free(ptr)
 }
 
+// Free a *C.StringArrayResult.
+//
+// Parameters:
+//   - result: Pointer to the C.StringArrayResult to be freed (*C.StringArrayResult).
+//
 //export free_string_array_result
-func free_string_array_result(StringArrayResultReference *C.StringArrayResult) {
-	FreeStringArray(StringArrayResultReference.data, StringArrayResultReference.numberOfElements)
+func free_string_array_result(StringArrayResultReference unsafe.Pointer) {
+	temp := (*C.StringArrayResult)(StringArrayResultReference)
+	FreeStringArray(unsafe.Pointer(temp.data), temp.numberOfElements)
 	C.free(unsafe.Pointer(StringArrayResultReference))
 }
 
+// Free a *C.IntArrayResult.
+//
+// Parameters:
+//   - result: Pointer to the C.IntArrayResult to be freed (*C.IntArrayResult).
+//
 //export free_int_array_result
-func free_int_array_result(ptr *C.IntArrayResult) {
-	C.free(unsafe.Pointer(ptr.data))
+func free_int_array_result(ptr unsafe.Pointer) {
+	temp := (*C.IntArrayResult)(ptr)
+	FreeIntArray(unsafe.Pointer(temp.data))
 	C.free(unsafe.Pointer(ptr))
 }
 
+// Free a *C.FloatArrayResult.
+//
+// Parameters:
+//   - result: Pointer to the C.FloatArrayResult to be freed (*C.FloatArrayResult).
+//
 //export free_float_array_result
-func free_float_array_result(ptr *C.FloatArrayResult) {
-	C.free(unsafe.Pointer(ptr.data))
+func free_float_array_result(ptr unsafe.Pointer) {
+	temp := (*C.FloatArrayResult)(ptr)
+	FreeFloatArray(unsafe.Pointer(temp.data))
 	C.free(unsafe.Pointer(ptr))
 }
 
